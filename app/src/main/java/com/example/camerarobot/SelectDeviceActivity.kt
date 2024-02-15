@@ -6,14 +6,18 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.ListView
+import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 
 class SelectDeviceActivity : AppCompatActivity() {
 
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_select_device)
@@ -25,32 +29,38 @@ class SelectDeviceActivity : AppCompatActivity() {
                 Manifest.permission.BLUETOOTH_CONNECT
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                1
+            )
+            null
         } else {
             val bluetoothManager =
                 this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
             bluetoothManager.adapter?.bondedDevices?.map { it.name }
         }
-        val adapter =
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, pairedDevices.orEmpty())
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_list_item_1,
+            pairedDevices?.toList() ?: emptyList()
+        )
         deviceList.adapter = adapter
 
         // Handle device selection
         deviceList.setOnItemClickListener { _, _, position, _ ->
             val selectedDeviceName = pairedDevices?.get(position)
-            selectedDeviceName?.let {
-                // Return selected device name to MainActivity
-                val intent = Intent()
-                intent.putExtra("selectedDeviceName", it)
-                setResult(Activity.RESULT_OK, intent)
-                finish()
+            if (selectedDeviceName != null) {
+                selectedDeviceName.let {
+                    // Return selected device name to MainActivity
+                    val intent = Intent()
+                    intent.putExtra("selectedDeviceName", it)
+                    finish()
+                    setResult(Activity.RESULT_OK, intent)
+                }
+            } else {
+                // Device not selected
+                Toast.makeText(this, "Device not selected", Toast.LENGTH_SHORT).show()
             }
         }
     }

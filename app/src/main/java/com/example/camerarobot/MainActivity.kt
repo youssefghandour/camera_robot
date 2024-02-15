@@ -3,15 +3,16 @@ package com.example.camerarobot
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothSocket
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import java.io.IOException
@@ -20,9 +21,9 @@ import java.util.UUID
 class MainActivity : AppCompatActivity() {
 
     // Constants
-    private val REQUEST_SELECT_DEVICE = 1
+    private lateinit var bluetoothSocket: BluetoothSocket // Declare BluetoothSocket as a global variable
+    private lateinit var scanButton: Button
 
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -30,7 +31,7 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(toolbar)
         val connectButton = findViewById<Button>(R.id.button)
         val scanButton = findViewById<Button>(R.id.button1)
-
+        scanButton.isEnabled = false
         connectButton.setOnClickListener {
             // Check if Bluetooth permissions are granted
             if (hasBluetoothPermissions()) {
@@ -44,6 +45,7 @@ class MainActivity : AppCompatActivity() {
                     )
             }
         }
+
         scanButton.setOnClickListener {
             // Start DeviceListActivity to select a device
             // Check if the camera permission is granted
@@ -74,7 +76,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Register permission result callback for Bluetooth permissions
-    val requestBluetoothPermissions =
+    private val requestBluetoothPermissions =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) {
                 // Bluetooth permissions are granted, proceed with the connection
@@ -95,7 +97,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Register permission result callback
-    val requestCameraPermission =
+    private val requestCameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) {
                 // Permission is granted, start scanner activity
@@ -117,7 +119,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Handle result from DeviceListActivity
-    var blueActivity =
+    private var blueActivity =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 val data: Intent? = result.data
@@ -125,21 +127,25 @@ class MainActivity : AppCompatActivity() {
                 val selectedDeviceName = data?.getStringExtra("selectedDeviceName")
                 // Connect to the selected device
                 selectedDeviceName?.let {
-                    connectToDevice(it)
+                    bluetoothSocket = connectToDevice(it)!!
+                    scanButton.isEnabled = true
+                    // After successful connection, send data
+
                 }
             }
         }
-    var scanActivity =
+    private var scanActivity =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 val data: Intent? = result.data
                 val contents = data?.getStringExtra("SCAN_RESULT")
                 Toast.makeText(this, contents, Toast.LENGTH_SHORT).show()
+                sendData(bluetoothSocket, contents)
             }
 
         }
 
-    private fun connectToDevice(deviceName: String) {
+    private fun connectToDevice(deviceName: String): BluetoothSocket? {
         val bluetoothManager = this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
 
         val bluetoothAdapter = bluetoothManager.adapter
@@ -149,7 +155,7 @@ class MainActivity : AppCompatActivity() {
             ) != PackageManager.PERMISSION_GRANTED
         ) {
 
-            return
+            return null
         } else {
             bluetoothAdapter?.bondedDevices?.firstOrNull { it.name == deviceName }
         }
@@ -171,10 +177,37 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Error connecting $e", Toast.LENGTH_SHORT).show()
                 socket.close()
                 e.printStackTrace()
+                return null
             }
+            return socket
         } else {
             // Device not found or not paired
             // Handle accordingly, for example, display an error message
+            Toast.makeText(this, "Device not found or not paired", Toast.LENGTH_SHORT).show()
+            return null
+        }
+
+    }
+
+    private fun sendData(socket: BluetoothSocket?, data: String?) {
+        try {
+            // Check if the socket is valid
+            if (socket != null) {
+                // Get the output stream from the socket
+                val outputStream = socket.outputStream
+                // Write the data to the output stream
+                outputStream.write(data?.toByteArray())
+                // Flush the output stream to ensure all data is sent
+                outputStream.flush()
+                // Close the output stream
+                outputStream.close()
+            } else {
+                // Socket is null, log an error or handle it accordingly
+                Log.e(TAG, "Socket is null")
+            }
+        } catch (e: IOException) {
+            // Error occurred while sending data, log the error or handle it accordingly
+            Log.e(TAG, "Error sending data: ${e.message}")
         }
     }
 
