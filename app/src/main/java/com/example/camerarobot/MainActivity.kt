@@ -8,6 +8,7 @@ import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
@@ -123,12 +124,19 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 val data: Intent? = result.data
+                Toast.makeText(
+                    this,
+                    "Connected to ${data?.getStringExtra("selectedDeviceName")}",
+                    Toast.LENGTH_SHORT
+                )
 
                 val selectedDeviceName = data?.getStringExtra("selectedDeviceName")
                 // Connect to the selected device
                 selectedDeviceName?.let {
                     bluetoothSocket = connectToDevice(it)!!
                     scanButton.isEnabled = true
+                    Toast.makeText(this, "Connected to $selectedDeviceName", Toast.LENGTH_SHORT)
+                        .show()
                     // After successful connection, send data
 
                 }
@@ -141,9 +149,40 @@ class MainActivity : AppCompatActivity() {
                 val contents = data?.getStringExtra("SCAN_RESULT")
                 Toast.makeText(this, contents, Toast.LENGTH_SHORT).show()
                 sendData(bluetoothSocket, contents)
+                playSound(contents)
             }
 
         }
+
+    private fun playSound(contents: String?) {
+        if (contents.isNullOrEmpty()) return // Handle empty or null input
+
+        val soundResource = when (contents) {
+            "a" -> R.raw.a
+            "e" -> R.raw.e
+            "g" -> R.raw.g
+            "f" -> R.raw.f
+            "i" -> R.raw.i
+            "s" -> R.raw.s
+            else -> null // Handle unknown characters
+        }
+
+        soundResource?.let {
+            val mediaPlayer = MediaPlayer.create(this, it)
+            try {
+                mediaPlayer.start()
+                mediaPlayer.setOnCompletionListener {
+                    it.release()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error playing sound: $e")
+                // Handle error gracefully, e.g., display a message
+            }
+        } ?: run {
+            // Handle missing sound resource, e.g., log a warning or notify user
+            Log.w(TAG, "Sound resource not found for character: $contents")
+        }
+    }
 
     private fun connectToDevice(deviceName: String): BluetoothSocket? {
         val bluetoothManager = this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager

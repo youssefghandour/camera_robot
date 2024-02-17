@@ -55,8 +55,9 @@ class SelectDeviceActivity : AppCompatActivity() {
                     // Return selected device name to MainActivity
                     val intent = Intent()
                     intent.putExtra("selectedDeviceName", it)
-                    finish()
                     setResult(Activity.RESULT_OK, intent)
+
+                    finish()
                 }
             } else {
                 // Device not selected
